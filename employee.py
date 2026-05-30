@@ -8,36 +8,50 @@ st.set_page_config(
 
 st.title("Hotel Supply Status")
 
-# Database connection
-conn = sqlite3.connect(
-    "warehouse.db",
-    check_same_thread=False
-)
+# Connect to database (works locally + Streamlit Cloud)
+conn = sqlite3.connect("warehouse.db", check_same_thread=False)
 
-# Search box
+# =========================
+# CREATE TABLE (IMPORTANT FIX)
+# =========================
+conn.execute("""
+CREATE TABLE IF NOT EXISTS inventory (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    item TEXT,
+    quantity INTEGER,
+    reorder_level INTEGER,
+    category TEXT
+)
+""")
+
+conn.commit()
+
+# =========================
+# SEARCH BAR
+# =========================
 search = st.text_input("Search Supply")
 
-# Load inventory
+# =========================
+# LOAD DATA
+# =========================
 rows = conn.execute("""
-SELECT
-    item,
-    quantity,
-    reorder_level,
-    category
+SELECT item, quantity, reorder_level, category
 FROM inventory
 ORDER BY item
 """).fetchall()
 
 if not rows:
-    st.info("No inventory found.")
+    st.info("No inventory found yet.")
 
+# =========================
+# DISPLAY ITEMS (READ ONLY)
+# =========================
 for item, qty, reorder, category in rows:
 
-    if search:
-        if search.lower() not in item.lower():
-            continue
+    if search and search.lower() not in item.lower():
+        continue
 
-    # Status text
+    # STATUS LOGIC
     if qty == 0:
         status = "Out of Stock"
     elif qty <= reorder:
@@ -45,26 +59,22 @@ for item, qty, reorder, category in rows:
     else:
         status = "Available"
 
-    # Display card
+    # CARD DISPLAY
     st.markdown(
         f"""
-<div style="
-border:2px solid #555;
-border-radius:12px;
-padding:15px;
-margin-bottom:15px;
-background-color:#1e1e1e;
-">
+        <div style="
+            border: 1px solid #444;
+            border-radius: 12px;
+            padding: 12px;
+            margin-bottom: 10px;
+            background-color: #111827;
+        ">
+            <h3>{item}</h3>
 
-<h3>{item}</h3>
-
-<p><strong>Category:</strong> {category}</p>
-
-<p><strong>Quantity:</strong> {qty}</p>
-
-<p><strong>Status:</strong> {status}</p>
-
-</div>
-""",
+            Category: {category}<br>
+            Quantity: {qty}<br>
+            Status: {status}
+        </div>
+        """,
         unsafe_allow_html=True
     )
