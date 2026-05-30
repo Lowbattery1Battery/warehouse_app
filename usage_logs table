@@ -1,0 +1,6 @@
+create table usage_logs (
+  id bigint generated always as identity primary key,
+  item text,
+  used int,
+  date text
+);
