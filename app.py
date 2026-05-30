@@ -15,13 +15,13 @@ supabase = create_client(url, key)
 # LOAD DATA
 # ------------------------
 def load_items():
-    try:
-        return supabase.table("inventory").select("*").execute().data or []
-    except Exception as e:
-        st.error(f"Database error: {e}")
-        return []
+    return supabase.table("inventory").select("*").execute().data or []
+
+def load_logs():
+    return supabase.table("usage_logs").select("*").execute().data or []
 
 data = load_items()
+logs = load_logs()
 
 # ------------------------
 # LOG USAGE
@@ -40,7 +40,7 @@ page = st.sidebar.radio("Menu", [
     "Inventory",
     "Low Stock",
     "Orders",
-    "Usage"
+    "Usage Report"
 ])
 
 # =========================================================
@@ -72,7 +72,7 @@ if page == "Inventory":
 
     st.divider()
 
-    # ---------------- ITEM CARDS ----------------
+    # ---------------- ITEMS (BLUE CARDS) ----------------
     for i in data:
 
         item_id = i["id"]
@@ -92,26 +92,25 @@ if page == "Inventory":
             status_color = "🟢"
             status_text = "OK"
 
-        # CARD UI
+        # BLUE CARD UI (FIXED CONTRAST)
         st.markdown(f"""
         <div style="
-            background-color: white;
+            background-color: #1f4e79;
+            color: white;
             padding: 15px;
             border-radius: 12px;
-            border: 1px solid #ddd;
             margin-bottom: 12px;
-            box-shadow: 0px 2px 6px rgba(0,0,0,0.05);
+            box-shadow: 0px 3px 8px rgba(0,0,0,0.2);
         ">
-            <h3 style="margin-bottom:5px;">{name}</h3>
-            <p style="margin:0;"><b>Category:</b> {category}</p>
-            <p style="margin:0;"><b>Quantity:</b> {qty}</p>
-            <p style="margin:0;"><b>Status:</b> {status_color} {status_text}</p>
+            <h3 style="margin:0; color:white;">{name}</h3>
+            <p style="margin:3px 0;">Category: {category}</p>
+            <p style="margin:3px 0;">Quantity: <b>{qty}</b></p>
+            <p style="margin:3px 0;">Status: {status_color} {status_text}</p>
         </div>
         """, unsafe_allow_html=True)
 
         col1, col2, col3, col4, col5 = st.columns(5)
 
-        # +1
         with col1:
             if st.button("+1", key=f"p1_{item_id}"):
                 supabase.table("inventory").update({
@@ -119,7 +118,6 @@ if page == "Inventory":
                 }).eq("id", item_id).execute()
                 st.rerun()
 
-        # -1 (LOGS USAGE)
         with col2:
             if st.button("-1", key=f"m1_{item_id}"):
                 new_qty = max(0, qty - 1)
@@ -131,7 +129,6 @@ if page == "Inventory":
                 log_usage(name, 1)
                 st.rerun()
 
-        # +5
         with col3:
             if st.button("+5", key=f"p5_{item_id}"):
                 supabase.table("inventory").update({
@@ -139,13 +136,11 @@ if page == "Inventory":
                 }).eq("id", item_id).execute()
                 st.rerun()
 
-        # DELETE
         with col4:
             if st.button("DELETE", key=f"d_{item_id}"):
                 supabase.table("inventory").delete().eq("id", item_id).execute()
                 st.rerun()
 
-        # SETTINGS
         with col5:
             with st.expander("⚙ Settings"):
                 new_reorder = st.number_input(
@@ -183,20 +178,46 @@ elif page == "Low Stock":
 # =========================================================
 elif page == "Orders":
 
-    st.title("📦 Orders Needed")
+    st.title("📦 Order Suggestions")
 
     for i in data:
         if i["quantity"] <= i["reorder_level"]:
             st.info(f"Order {i['reorder_amount']} of {i['item']}")
 
 # =========================================================
-# USAGE
+# USAGE REPORT (IMPROVED)
 # =========================================================
-elif page == "Usage":
+elif page == "Usage Report":
 
-    st.title("📊 Usage Logs")
+    st.title("📊 Usage Report")
 
-    logs = supabase.table("usage_logs").select("*").execute().data or []
+    if not logs:
+        st.info("No usage data yet.")
+        st.stop()
+
+    # ---------------- DAILY TOTALS ----------------
+    st.subheader("Daily Usage")
+
+    daily = {}
 
     for log in logs:
-        st.write(f"{log['date']} | {log['item']} | Used: {log['used']}")
+        key = (log["date"], log["item"])
+        daily[key] = daily.get(key, 0) + log["used"]
+
+    for (date, item), used in daily.items():
+        st.write(f"{date} | {item}: {used}")
+
+    st.divider()
+
+    # ---------------- MONTHLY TOTALS ----------------
+    st.subheader("Monthly Usage")
+
+    monthly = {}
+
+    for log in logs:
+        month = log["date"][:7]
+        key = (month, log["item"])
+        monthly[key] = monthly.get(key, 0) + log["used"]
+
+    for (month, item), used in monthly.items():
+        st.write(f"{month} | {item}: {used}")
