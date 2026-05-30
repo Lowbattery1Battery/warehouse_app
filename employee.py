@@ -1,80 +1,46 @@
 import streamlit as st
-import sqlite3
+from supabase import create_client
 
-st.set_page_config(
-    page_title="Hotel Supply Status",
-    layout="wide"
-)
+st.set_page_config(page_title="Hotel Supply View", layout="wide")
 
-st.title("Hotel Supply Status")
+# Supabase connection
+url = st.secrets["SUPABASE_URL"]
+key = st.secrets["SUPABASE_KEY"]
+supabase = create_client(url, key)
 
-# Connect to database (works locally + Streamlit Cloud)
-conn = sqlite3.connect("warehouse.db", check_same_thread=False)
+st.title("Hotel Supply Status (Read Only)")
 
-# =========================
-# CREATE TABLE (IMPORTANT FIX)
-# =========================
-conn.execute("""
-CREATE TABLE IF NOT EXISTS inventory (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    item TEXT,
-    quantity INTEGER,
-    reorder_level INTEGER,
-    category TEXT
-)
-""")
+search = st.text_input("Search Item")
 
-conn.commit()
+data = supabase.table("inventory").select("*").execute().data
 
-# =========================
-# SEARCH BAR
-# =========================
-search = st.text_input("Search Supply")
+for row in data:
 
-# =========================
-# LOAD DATA
-# =========================
-rows = conn.execute("""
-SELECT item, quantity, reorder_level, category
-FROM inventory
-ORDER BY item
-""").fetchall()
-
-if not rows:
-    st.info("No inventory found yet.")
-
-# =========================
-# DISPLAY ITEMS (READ ONLY)
-# =========================
-for item, qty, reorder, category in rows:
+    item = row["item"]
+    qty = row["quantity"]
+    category = row["category"]
+    reorder = row["reorder_level"]
 
     if search and search.lower() not in item.lower():
         continue
 
-    # STATUS LOGIC
     if qty == 0:
-        status = "Out of Stock"
+        status = "OUT OF STOCK"
     elif qty <= reorder:
-        status = "Low Stock"
+        status = "LOW STOCK"
     else:
-        status = "Available"
+        status = "AVAILABLE"
 
-    # CARD DISPLAY
-    st.markdown(
-        f"""
-        <div style="
-            border: 1px solid #444;
-            border-radius: 12px;
-            padding: 12px;
-            margin-bottom: 10px;
-            background-color: #111827;
-        ">
-            <h3>{item}</h3>
-
-            Category: {category}<br>
-            Quantity: {qty}<br>
-            Status: {status}
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
+    st.markdown(f"""
+    <div style="
+        border:1px solid #444;
+        border-radius:10px;
+        padding:12px;
+        margin-bottom:10px;
+    ">
+        <h3>{item}</h3>
+        Category: {category}<br>
+        Quantity: {qty}<br>
+        Status: {status}
+    </div>
+    """, unsafe_allow_html=True)
