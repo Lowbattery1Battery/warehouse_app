@@ -1,107 +1,112 @@
 import streamlit as st
 from supabase import create_client
+from datetime import datetime
 
-st.set_page_config(page_title="Warehouse Manager", layout="wide")
+st.set_page_config(page_title="Warehouse App", layout="wide")
 
 # ----------------------------
-# SUPABASE CONNECTION
+# SUPABASE
 # ----------------------------
 url = st.secrets["SUPABASE_URL"]
 key = st.secrets["SUPABASE_KEY"]
 supabase = create_client(url, key)
 
-st.title("📦 Warehouse Inventory Manager")
+# ----------------------------
+# SIDEBAR MENU
+# ----------------------------
+page = st.sidebar.radio("Menu", [
+    "Inventory",
+    "Low Stock",
+    "Daily Usage",
+    "Monthly Usage"
+])
 
 # ----------------------------
-# LOAD DATA (SAFE)
+# LOAD INVENTORY
 # ----------------------------
-def load_data():
-    try:
-        res = supabase.table("inventory").select("*").execute()
-        return res.data
-    except Exception as e:
-        st.error(f"Database error: {e}")
-        return []
+def get_inventory():
+    return supabase.table("inventory").select("*").execute().data or []
 
-data = load_data()
+data = get_inventory()
 
-# ----------------------------
-# ADD ITEM
-# ----------------------------
-st.subheader("➕ Add Item")
+# ============================
+# INVENTORY PAGE
+# ============================
+if page == "Inventory":
 
-with st.form("add_item"):
-    item = st.text_input("Item Name")
-    category = st.text_input("Category")
-    quantity = st.number_input("Quantity", min_value=0, step=1)
-    reorder_level = st.number_input("Reorder Level", min_value=0, step=1)
-    reorder_amount = st.number_input("Reorder Amount", min_value=0, step=1)
+    st.title("📦 Inventory")
 
-    submit = st.form_submit_button("Add Item")
+    st.subheader("Add Item")
 
-    if submit and item:
-        supabase.table("inventory").insert({
+    with st.form("add"):
+        item = st.text_input("Item")
+        category = st.text_input("Category")
+        qty = st.number_input("Quantity", 0)
+        reorder = st.number_input("Reorder Level", 0)
+        reorder_amt = st.number_input("Reorder Amount", 0)
+
+        if st.form_submit_button("Add"):
+            supabase.table("inventory").insert({
+                "item": item,
+                "category": category,
+                "quantity": qty,
+                "reorder_level": reorder,
+                "reorder_amount": reorder_amt
+            }).execute()
+            st.rerun()
+
+    st.divider()
+
+    for i in data:
+        st.write(f"**{i['item']}** | Qty: {i['quantity']}")
+
+# ============================
+# LOW STOCK PAGE
+# ============================
+elif page == "Low Stock":
+
+    st.title("⚠️ Low Stock Items")
+
+    for i in data:
+        if i["quantity"] <= i["reorder_level"]:
+            st.warning(f"{i['item']} — Qty: {i['quantity']} (Low)")
+
+# ============================
+# DAILY USAGE
+# ============================
+elif page == "Daily Usage":
+
+    st.title("📊 Daily Usage Tracker")
+
+    item = st.selectbox("Item", [i["item"] for i in data])
+    used = st.number_input("Used Today", 0)
+
+    if st.button("Log Daily Usage"):
+
+        supabase.table("usage_logs").insert({
             "item": item,
-            "category": category,
-            "quantity": quantity,
-            "reorder_level": reorder_level,
-            "reorder_amount": reorder_amount
+            "used": used,
+            "date": str(datetime.now().date())
         }).execute()
-        st.success("Item added!")
-        st.rerun()
 
-# ----------------------------
-# DISPLAY INVENTORY
-# ----------------------------
-st.subheader("📋 Inventory")
+        st.success("Logged!")
 
-for row in data:
+# ============================
+# MONTHLY USAGE
+# ============================
+elif page == "Monthly Usage":
 
-    item_id = row["id"]
-    item = row["item"]
-    qty = row["quantity"]
-    category = row["category"]
-    reorder = row["reorder_level"]
+    st.title("📈 Monthly Usage")
 
-    if qty <= 0:
-        status = "🔴 OUT"
-    elif qty <= reorder:
-        status = "🟠 LOW"
-    else:
-        status = "🟢 OK"
+    logs = supabase.table("usage_logs").select("*").execute().data or []
 
-    st.markdown(f"""
-### {item}
-Category: {category}  
-Quantity: {qty}  
-Status: {status}
----
-""")
+    monthly = {}
 
-    col1, col2, col3, col4 = st.columns(4)
+    for log in logs:
+        month = log["date"][:7]  # YYYY-MM
+        key = (log["item"], month)
 
-    with col1:
-        if st.button("+1", key=f"p1_{item_id}"):
-            supabase.table("inventory").update({
-                "quantity": qty + 1
-            }).eq("id", item_id).execute()
-            st.rerun()
+        monthly[key] = monthly.get(key, 0) + log["used"]
 
-    with col2:
-        if st.button("-1", key=f"m1_{item_id}"):
-            supabase.table("inventory").update({
-                "quantity": max(0, qty - 1)
-            }).eq("id", item_id).execute()
-            st.rerun()
-
-    with col3:
-        if st.button("+5", key=f"p5_{item_id}"):
-            supabase.table("inventory").update({
-                "quantity": qty + 5
-            }).eq("id", item_id).execute()
-            st.rerun()
-
-    with col4:
-        if st.button("DELETE", key=f"d_{item_id}"):
-            supabase.table("inventory").delete().eq("id", item_id).execute()
-            st.rerun()
+    for (item, month), used in monthly.items():
+        st.write(f"{month} | {item}: {used}")
