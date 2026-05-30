@@ -68,87 +68,91 @@ if page == "Inventory":
     # ---------------- ITEMS ----------------
     for i in data:
 
-        item_id = i["id"]
-        name = i["item"]
-        qty = i["quantity"]
-        category = i["category"]
-        reorder = i["reorder_level"]
+    item_id = i["id"]
+    name = i["item"]
+    qty = i["quantity"]
+    category = i["category"]
+    reorder = i["reorder_level"]
 
-        # status
-        if qty <= 0:
-            status = "🔴 OUT"
-        elif qty <= reorder:
-            status = "🟠 LOW"
-        else:
-            status = "🟢 OK"
+    # STATUS
+    if qty <= 0:
+        status_text = "OUT OF STOCK"
+        status_color = "🔴"
+    elif qty <= reorder:
+        status_text = "LOW STOCK"
+        status_color = "🟠"
+    else:
+        status_text = "OK"
+        status_color = "🟢"
 
-        st.markdown(f"""
-### {name}
-Category: {category}  
-Quantity: {qty}  
-Status: {status}
----
-""")
+    st.markdown(f"""
+    <div style="
+        background-color: white;
+        padding: 15px;
+        border-radius: 12px;
+        border: 1px solid #ddd;
+        margin-bottom: 15px;
+        box-shadow: 0px 2px 6px rgba(0,0,0,0.05);
+    ">
+        <h3 style="margin-bottom:5px;">{name}</h3>
+        <p style="margin:0;"><b>Category:</b> {category}</p>
+        <p style="margin:0;"><b>Quantity:</b> {qty}</p>
+        <p style="margin:0;"><b>Status:</b> {status_color} {status_text}</p>
+    </div>
+    """, unsafe_allow_html=True)
 
-        col1, col2, col3, col4, col5 = st.columns(5)
+    col1, col2, col3, col4, col5 = st.columns(5)
 
-        # +1
-        with col1:
-            if st.button("+1", key=f"p1_{item_id}"):
+    with col1:
+        if st.button("+1", key=f"p1_{item_id}"):
+            supabase.table("inventory").update({
+                "quantity": qty + 1
+            }).eq("id", item_id).execute()
+            st.rerun()
+
+    with col2:
+        if st.button("-1", key=f"m1_{item_id}"):
+            new_qty = max(0, qty - 1)
+
+            supabase.table("inventory").update({
+                "quantity": new_qty
+            }).eq("id", item_id).execute()
+
+            log_usage(name, 1)
+            st.rerun()
+
+    with col3:
+        if st.button("+5", key=f"p5_{item_id}"):
+            supabase.table("inventory").update({
+                "quantity": qty + 5
+            }).eq("id", item_id).execute()
+            st.rerun()
+
+    with col4:
+        if st.button("DELETE", key=f"d_{item_id}"):
+            supabase.table("inventory").delete().eq("id", item_id).execute()
+            st.rerun()
+
+    with col5:
+        with st.expander("⚙"):
+            new_reorder = st.number_input(
+                "Reorder Level",
+                value=reorder,
+                key=f"r_{item_id}"
+            )
+
+            new_amount = st.number_input(
+                "Reorder Amount",
+                value=i["reorder_amount"],
+                key=f"a_{item_id}"
+            )
+
+            if st.button("Save", key=f"s_{item_id}"):
                 supabase.table("inventory").update({
-                    "quantity": qty + 1
+                    "reorder_level": new_reorder,
+                    "reorder_amount": new_amount
                 }).eq("id", item_id).execute()
                 st.rerun()
-
-        # -1 (IMPORTANT: logs usage)
-        with col2:
-            if st.button("-1", key=f"m1_{item_id}"):
-                new_qty = max(0, qty - 1)
-
-                supabase.table("inventory").update({
-                    "quantity": new_qty
-                }).eq("id", item_id).execute()
-
-                log_usage(name, 1)
-                st.rerun()
-
-        # +5
-        with col3:
-            if st.button("+5", key=f"p5_{item_id}"):
-                supabase.table("inventory").update({
-                    "quantity": qty + 5
-                }).eq("id", item_id).execute()
-                st.rerun()
-
-        # DELETE
-        with col4:
-            if st.button("DELETE", key=f"d_{item_id}"):
-                supabase.table("inventory").delete().eq("id", item_id).execute()
-                st.rerun()
-
-        # SETTINGS (edit reorder levels)
-        with col5:
-            with st.expander("⚙ Settings"):
-                new_reorder = st.number_input(
-                    "Reorder Level",
-                    value=reorder,
-                    key=f"r_{item_id}"
-                )
-
-                new_amount = st.number_input(
-                    "Reorder Amount",
-                    value=i["reorder_amount"],
-                    key=f"a_{item_id}"
-                )
-
-                if st.button("Save", key=f"s_{item_id}"):
-                    supabase.table("inventory").update({
-                        "reorder_level": new_reorder,
-                        "reorder_amount": new_amount
-                    }).eq("id", item_id).execute()
-
-                    st.rerun()
-
 # =========================================================
 # LOW STOCK PAGE
 # =========================================================
