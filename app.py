@@ -2,222 +2,446 @@ import streamlit as st
 from supabase import create_client
 from datetime import datetime
 
-st.set_page_config(page_title="Warehouse System", layout="wide")
+st.set_page_config(
+page_title="Warehouse Management System",
+layout="wide"
+)
 
-# ------------------------
+# --------------------------------------------------
+
 # SUPABASE
-# ------------------------
+
+# --------------------------------------------------
+
 url = st.secrets["SUPABASE_URL"]
 key = st.secrets["SUPABASE_KEY"]
 supabase = create_client(url, key)
 
-# ------------------------
+# --------------------------------------------------
+
 # LOAD DATA
-# ------------------------
-def load_items():
-    return supabase.table("inventory").select("*").execute().data or []
 
-def load_logs():
-    return supabase.table("usage_logs").select("*").execute().data or []
+# --------------------------------------------------
 
-data = load_items()
-logs = load_logs()
+def load_inventory():
+try:
+return supabase.table("inventory").select("*").execute().data or []
+except Exception as e:
+st.error(f"Inventory Error: {e}")
+return []
 
-# ------------------------
-# LOG USAGE
-# ------------------------
+def load_usage_logs():
+try:
+return (
+supabase
+.table("usage_logs")
+.select("*")
+.execute()
+.data
+or []
+)
+except Exception as e:
+st.error(f"Usage Log Error: {e}")
+return []
+
 def log_usage(item_name, amount):
-    supabase.table("usage_logs").insert({
-        "item": item_name,
-        "used": amount,
-        "date": str(datetime.now().date())
-    }).execute()
+try:
+supabase.table("usage_logs").insert({
+"item": item_name,
+"used": amount,
+"date": str(datetime.now().date())
+}).execute()
+except Exception as e:
+st.error(f"Usage Log Error: {e}")
 
-# ------------------------
+inventory = load_inventory()
+
+# --------------------------------------------------
+
 # SIDEBAR
-# ------------------------
-page = st.sidebar.radio("Menu", [
-    "Inventory",
-    "Low Stock",
-    "Orders",
-    "Usage Report"
-])
 
-# =========================================================
+# --------------------------------------------------
+
+st.sidebar.title("Warehouse Management")
+st.sidebar.caption("Hotel Supply System")
+
+page = st.sidebar.radio(
+"",
+[
+"Inventory",
+"Low Stock",
+"Orders",
+"Usage Reports"
+]
+)
+
+# ==================================================
+
 # INVENTORY
-# =========================================================
+
+# ==================================================
+
 if page == "Inventory":
 
-    st.title("📦 Inventory System")
+```
+st.title("Inventory")
 
-    # ---------------- ADD ITEM ----------------
-    st.subheader("➕ Add Item")
+# ---------------- SEARCH ----------------
+search = st.text_input(
+    "Search Inventory",
+    placeholder="Search by item name..."
+)
 
-    with st.form("add_item"):
-        item = st.text_input("Item Name")
+if search:
+    inventory = [
+        item
+        for item in inventory
+        if search.lower() in item["item"].lower()
+    ]
+
+# ---------------- ADD ITEM ----------------
+with st.expander("Add New Item"):
+
+    with st.form("add_item_form"):
+
+        item_name = st.text_input("Item Name")
         category = st.text_input("Category")
-        qty = st.number_input("Quantity", 0)
-        reorder_level = st.number_input("Reorder Level", 0)
-        reorder_amount = st.number_input("Reorder Amount", 0)
 
-        if st.form_submit_button("Add"):
+        quantity = st.number_input(
+            "Starting Quantity",
+            min_value=0,
+            value=0
+        )
+
+        reorder_level = st.number_input(
+            "Reorder Level",
+            min_value=0,
+            value=5
+        )
+
+        reorder_amount = st.number_input(
+            "Reorder Amount",
+            min_value=0,
+            value=10
+        )
+
+        submit = st.form_submit_button("Add Item")
+
+        if submit:
+
             supabase.table("inventory").insert({
-                "item": item,
+                "item": item_name,
                 "category": category,
-                "quantity": qty,
+                "quantity": quantity,
                 "reorder_level": reorder_level,
                 "reorder_amount": reorder_amount
             }).execute()
+
+            st.success("Item Added")
             st.rerun()
 
-    st.divider()
+st.divider()
 
-    # ---------------- ITEMS (BLUE CARDS) ----------------
-    for i in data:
+# ---------------- ITEM CARDS ----------------
+for item in inventory:
 
-        item_id = i["id"]
-        name = i["item"]
-        qty = i["quantity"]
-        category = i["category"]
-        reorder = i["reorder_level"]
+    item_id = item["id"]
+    name = item["item"]
+    category = item["category"]
+    quantity = item["quantity"]
+    reorder_level = item["reorder_level"]
+    reorder_amount = item["reorder_amount"]
 
-        # status
-        if qty <= 0:
-            status_color = "🔴"
-            status_text = "OUT OF STOCK"
-        elif qty <= reorder:
-            status_color = "🟠"
-            status_text = "LOW STOCK"
-        else:
-            status_color = "🟢"
-            status_text = "OK"
+    if quantity <= 0:
+        status = "OUT OF STOCK"
+        status_color = "#b00020"
+    elif quantity <= reorder_level:
+        status = "LOW STOCK"
+        status_color = "#c77700"
+    else:
+        status = "IN STOCK"
+        status_color = "#006400"
 
-        # BLUE CARD UI (FIXED CONTRAST)
-        st.markdown(f"""
+    st.markdown(
+        f"""
         <div style="
-            background-color: #1f4e79;
-            color: white;
-            padding: 15px;
-            border-radius: 12px;
-            margin-bottom: 12px;
-            box-shadow: 0px 3px 8px rgba(0,0,0,0.2);
+            background-color:#1f4e79;
+            color:white;
+            padding:18px;
+            border-radius:12px;
+            margin-bottom:12px;
         ">
-            <h3 style="margin:0; color:white;">{name}</h3>
-            <p style="margin:3px 0;">Category: {category}</p>
-            <p style="margin:3px 0;">Quantity: <b>{qty}</b></p>
-            <p style="margin:3px 0;">Status: {status_color} {status_text}</p>
+            <h3 style="margin-bottom:8px;color:white;">
+                {name}
+            </h3>
+
+            <p style="margin:2px 0;">
+                Category: {category}
+            </p>
+
+            <p style="
+                font-size:22px;
+                margin:6px 0;
+                font-weight:bold;
+            ">
+                Quantity: {quantity}
+            </p>
+
+            <p style="
+                color:{status_color};
+                font-weight:bold;
+                margin:0;
+            ">
+                {status}
+            </p>
         </div>
-        """, unsafe_allow_html=True)
+        """,
+        unsafe_allow_html=True
+    )
 
-        col1, col2, col3, col4, col5 = st.columns(5)
+    col1, col2, col3, col4, col5 = st.columns(5)
 
-        with col1:
-            if st.button("+1", key=f"p1_{item_id}"):
+    # +1
+    with col1:
+        if st.button("+1", key=f"plus_{item_id}"):
+
+            supabase.table("inventory").update({
+                "quantity": quantity + 1
+            }).eq("id", item_id).execute()
+
+            st.rerun()
+
+    # -1
+    with col2:
+        if st.button("-1", key=f"minus_{item_id}"):
+
+            new_quantity = max(0, quantity - 1)
+
+            supabase.table("inventory").update({
+                "quantity": new_quantity
+            }).eq("id", item_id).execute()
+
+            log_usage(name, 1)
+
+            st.rerun()
+
+    # +5
+    with col3:
+        if st.button("+5", key=f"plus5_{item_id}"):
+
+            supabase.table("inventory").update({
+                "quantity": quantity + 5
+            }).eq("id", item_id).execute()
+
+            st.rerun()
+
+    # DELETE ITEM
+    with col4:
+        if st.button(
+            "Delete Item",
+            key=f"delete_{item_id}"
+        ):
+
+            supabase.table("inventory").delete().eq(
+                "id",
+                item_id
+            ).execute()
+
+            st.rerun()
+
+    # SETTINGS
+    with col5:
+
+        with st.expander("Settings"):
+
+            new_reorder_level = st.number_input(
+                "Reorder Level",
+                value=int(reorder_level),
+                key=f"rl_{item_id}"
+            )
+
+            new_reorder_amount = st.number_input(
+                "Reorder Amount",
+                value=int(reorder_amount),
+                key=f"ra_{item_id}"
+            )
+
+            if st.button(
+                "Save Settings",
+                key=f"save_{item_id}"
+            ):
+
                 supabase.table("inventory").update({
-                    "quantity": qty + 1
-                }).eq("id", item_id).execute()
+                    "reorder_level": new_reorder_level,
+                    "reorder_amount": new_reorder_amount
+                }).eq(
+                    "id",
+                    item_id
+                ).execute()
+
                 st.rerun()
+```
 
-        with col2:
-            if st.button("-1", key=f"m1_{item_id}"):
-                new_qty = max(0, qty - 1)
+# ==================================================
 
-                supabase.table("inventory").update({
-                    "quantity": new_qty
-                }).eq("id", item_id).execute()
-
-                log_usage(name, 1)
-                st.rerun()
-
-        with col3:
-            if st.button("+5", key=f"p5_{item_id}"):
-                supabase.table("inventory").update({
-                    "quantity": qty + 5
-                }).eq("id", item_id).execute()
-                st.rerun()
-
-        with col4:
-            if st.button("DELETE", key=f"d_{item_id}"):
-                supabase.table("inventory").delete().eq("id", item_id).execute()
-                st.rerun()
-
-        with col5:
-            with st.expander("⚙ Settings"):
-                new_reorder = st.number_input(
-                    "Reorder Level",
-                    value=reorder,
-                    key=f"r_{item_id}"
-                )
-
-                new_amount = st.number_input(
-                    "Reorder Amount",
-                    value=i["reorder_amount"],
-                    key=f"a_{item_id}"
-                )
-
-                if st.button("Save", key=f"s_{item_id}"):
-                    supabase.table("inventory").update({
-                        "reorder_level": new_reorder,
-                        "reorder_amount": new_amount
-                    }).eq("id", item_id).execute()
-                    st.rerun()
-
-# =========================================================
 # LOW STOCK
-# =========================================================
+
+# ==================================================
+
 elif page == "Low Stock":
 
-    st.title("⚠️ Low Stock Items")
+```
+st.title("Low Stock")
 
-    for i in data:
-        if i["quantity"] <= i["reorder_level"]:
-            st.warning(f"{i['item']} — Qty: {i['quantity']}")
+found = False
 
-# =========================================================
+for item in inventory:
+
+    if item["quantity"] <= item["reorder_level"]:
+
+        found = True
+
+        st.warning(
+            f"{item['item']} "
+            f"(Qty: {item['quantity']})"
+        )
+
+if not found:
+    st.success("No low stock items.")
+```
+
+# ==================================================
+
 # ORDERS
-# =========================================================
+
+# ==================================================
+
 elif page == "Orders":
 
-    st.title("📦 Order Suggestions")
+```
+st.title("Order Suggestions")
 
-    for i in data:
-        if i["quantity"] <= i["reorder_level"]:
-            st.info(f"Order {i['reorder_amount']} of {i['item']}")
+found = False
 
-# =========================================================
-# USAGE REPORT (IMPROVED)
-# =========================================================
-elif page == "Usage Report":
+for item in inventory:
 
-    st.title("📊 Usage Report")
+    if item["quantity"] <= item["reorder_level"]:
 
-    if not logs:
-        st.info("No usage data yet.")
-        st.stop()
+        found = True
 
-    # ---------------- DAILY TOTALS ----------------
-    st.subheader("Daily Usage")
+        st.info(
+            f"Order {item['reorder_amount']} "
+            f"of {item['item']}"
+        )
 
-    daily = {}
+if not found:
+    st.success("No orders needed.")
+```
 
-    for log in logs:
-        key = (log["date"], log["item"])
-        daily[key] = daily.get(key, 0) + log["used"]
+# ==================================================
 
-    for (date, item), used in daily.items():
-        st.write(f"{date} | {item}: {used}")
+# USAGE REPORTS
 
-    st.divider()
+# ==================================================
 
-    # ---------------- MONTHLY TOTALS ----------------
-    st.subheader("Monthly Usage")
+elif page == "Usage Reports":
 
-    monthly = {}
+```
+st.title("Usage Reports")
 
-    for log in logs:
-        month = log["date"][:7]
-        key = (month, log["item"])
-        monthly[key] = monthly.get(key, 0) + log["used"]
+logs = load_usage_logs()
 
-    for (month, item), used in monthly.items():
-        st.write(f"{month} | {item}: {used}")
+if not logs:
+    st.info("No usage data available.")
+    st.stop()
+
+st.subheader("Daily Summary")
+
+daily_totals = {}
+
+for log in logs:
+
+    key = (
+        log["date"],
+        log["item"]
+    )
+
+    daily_totals[key] = (
+        daily_totals.get(key, 0)
+        + log["used"]
+    )
+
+for (date, item_name), total in sorted(
+    daily_totals.items(),
+    reverse=True
+):
+
+    st.write(
+        f"{date} | {item_name} | Used: {total}"
+    )
+
+st.divider()
+
+st.subheader("Monthly Summary")
+
+monthly_totals = {}
+
+for log in logs:
+
+    month = log["date"][:7]
+
+    key = (
+        month,
+        log["item"]
+    )
+
+    monthly_totals[key] = (
+        monthly_totals.get(key, 0)
+        + log["used"]
+    )
+
+for (month, item_name), total in sorted(
+    monthly_totals.items(),
+    reverse=True
+):
+
+    st.write(
+        f"{month} | {item_name} | Used: {total}"
+    )
+
+st.divider()
+
+st.subheader("Usage Log Entries")
+
+for log in sorted(
+    logs,
+    key=lambda x: x["id"],
+    reverse=True
+):
+
+    c1, c2 = st.columns([6, 1])
+
+    with c1:
+        st.write(
+            f"{log['date']} | "
+            f"{log['item']} | "
+            f"Used: {log['used']}"
+        )
+
+    with c2:
+        if st.button(
+            "Delete",
+            key=f"log_{log['id']}"
+        ):
+
+            supabase.table(
+                "usage_logs"
+            ).delete().eq(
+                "id",
+                log["id"]
+            ).execute()
+
+            st.rerun()
+```
+
+"""
