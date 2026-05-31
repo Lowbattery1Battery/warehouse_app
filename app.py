@@ -4,16 +4,38 @@ from datetime import datetime
 
 st.set_page_config(page_title="Warehouse System", layout="wide")
 
-# -----------------------------
+# =====================================================
+# SIMPLE PASSCODE LOCK
+# =====================================================
+PASSWORD = "Winstar2026!"  # change this
+
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+
+if not st.session_state.authenticated:
+    st.title("Warehouse Login")
+
+    entered = st.text_input("Enter Passcode", type="password")
+
+    if st.button("Login"):
+        if entered == PASSWORD:
+            st.session_state.authenticated = True
+            st.rerun()
+        else:
+            st.error("Incorrect passcode")
+
+    st.stop()
+
+# =====================================================
 # SUPABASE
-# -----------------------------
+# =====================================================
 url = st.secrets["SUPABASE_URL"]
 key = st.secrets["SUPABASE_KEY"]
 supabase = create_client(url, key)
 
-# -----------------------------
+# =====================================================
 # DATA
-# -----------------------------
+# =====================================================
 def load_inventory():
     data = supabase.table("inventory").select("*").execute().data or []
     return sorted(data, key=lambda x: x["item"].lower())
@@ -30,9 +52,9 @@ def log_usage(item, amount):
 
 inventory = load_inventory()
 
-# -----------------------------
+# =====================================================
 # SIDEBAR
-# -----------------------------
+# =====================================================
 st.sidebar.title("Warehouse System")
 
 page = st.sidebar.radio(
@@ -47,7 +69,6 @@ if page == "Inventory":
 
     st.title("Inventory")
 
-    # ---------------- SEARCH ----------------
     search = st.text_input("Search item")
 
     if search:
@@ -79,7 +100,7 @@ if page == "Inventory":
 
     st.divider()
 
-    # ---------------- ITEM CARDS ----------------
+    # ---------------- ITEMS ----------------
     for i in inventory:
 
         item_id = i["id"]
@@ -88,7 +109,6 @@ if page == "Inventory":
         qty = i["quantity"]
         reorder = i["reorder_level"]
 
-        # status colors
         if qty <= 0:
             glow = "#ff3b3b"
             status = "OUT OF STOCK"
@@ -112,18 +132,13 @@ if page == "Inventory":
             ">
                 <h3 style="margin:0;">{name}</h3>
                 <p style="margin:5px 0;">Category: {category}</p>
-                <p style="margin:5px 0;font-size:18px;">
-                    Quantity: {qty}
-                </p>
-                <p style="margin:0;color:{glow};font-weight:bold;">
-                    {status}
-                </p>
+                <p style="margin:5px 0;font-size:18px;">Quantity: {qty}</p>
+                <p style="margin:0;color:{glow};font-weight:bold;">{status}</p>
             </div>
             """,
             unsafe_allow_html=True
         )
 
-        # ---------------- BUTTONS ----------------
         c1, c2, c3, c4, c5 = st.columns(5)
 
         with c1:
@@ -154,7 +169,6 @@ if page == "Inventory":
                 supabase.table("inventory").delete().eq("id", item_id).execute()
                 st.rerun()
 
-        # ---------------- SETTINGS (UPDATED) ----------------
         with c5:
             with st.expander("Settings"):
 
@@ -222,7 +236,6 @@ elif page == "Usage Reports":
         st.info("No usage data yet")
         st.stop()
 
-    # ---------------- DAILY ----------------
     st.subheader("Daily Summary")
 
     daily = {}
@@ -251,7 +264,6 @@ elif page == "Usage Reports":
 
     st.divider()
 
-    # ---------------- MONTHLY ----------------
     st.subheader("Monthly Summary")
 
     monthly = {}
