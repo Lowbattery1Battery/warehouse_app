@@ -64,12 +64,7 @@ if page == "Inventory":
             item = st.text_input("Item Name")
             category = st.text_input("Category")
             qty = st.number_input("Quantity", min_value=0, value=0)
-
-            reorder_level = st.number_input(
-                "Reorder Level",
-                min_value=0,
-                value=5
-            )
+            reorder_level = st.number_input("Reorder Level", min_value=0, value=5)
 
             submit = st.form_submit_button("Add")
 
@@ -84,9 +79,7 @@ if page == "Inventory":
 
     st.divider()
 
-    # =================================================
-    # ITEM CARDS (GLOW STYLE)
-    # =================================================
+    # ---------------- ITEM CARDS ----------------
     for i in inventory:
 
         item_id = i["id"]
@@ -95,7 +88,6 @@ if page == "Inventory":
         qty = i["quantity"]
         reorder = i["reorder_level"]
 
-        # status color logic
         if qty <= 0:
             glow = "#ff3b3b"
             status = "OUT OF STOCK"
@@ -130,16 +122,16 @@ if page == "Inventory":
             unsafe_allow_html=True
         )
 
-        col1, col2, col3, col4, col5 = st.columns(5)
+        c1, c2, c3, c4, c5 = st.columns(5)
 
-        with col1:
+        with c1:
             if st.button("+1", key=f"p1_{item_id}"):
                 supabase.table("inventory").update({
                     "quantity": qty + 1
                 }).eq("id", item_id).execute()
                 st.rerun()
 
-        with col2:
+        with c2:
             if st.button("-1", key=f"m1_{item_id}"):
 
                 new_qty = max(0, qty - 1)
@@ -152,19 +144,19 @@ if page == "Inventory":
 
                 st.rerun()
 
-        with col3:
+        with c3:
             if st.button("+5", key=f"p5_{item_id}"):
                 supabase.table("inventory").update({
                     "quantity": qty + 5
                 }).eq("id", item_id).execute()
                 st.rerun()
 
-        with col4:
+        with c4:
             if st.button("Delete", key=f"d_{item_id}"):
                 supabase.table("inventory").delete().eq("id", item_id).execute()
                 st.rerun()
 
-        with col5:
+        with c5:
             with st.expander("Settings"):
 
                 new_reorder = st.number_input(
@@ -197,7 +189,7 @@ elif page == "Low Stock":
 # =====================================================
 elif page == "Orders":
 
-    st.title("Orders")
+    st.title("Orders Needed")
 
     found = False
 
@@ -222,6 +214,7 @@ elif page == "Usage Reports":
         st.info("No usage data yet")
         st.stop()
 
+    # ---------------- DAILY ----------------
     st.subheader("Daily Summary")
 
     daily = {}
@@ -231,10 +224,26 @@ elif page == "Usage Reports":
         daily[key] = daily.get(key, 0) + log["used"]
 
     for (date, item), total in sorted(daily.items(), reverse=True):
-        st.write(f"{date} | {item} | Used: {total}")
+
+        c1, c2 = st.columns([6, 1])
+
+        with c1:
+            st.write(f"{date} | {item} | Used: {total}")
+
+        with c2:
+            if st.button("Delete", key=f"dd_{date}_{item}"):
+
+                supabase.table("usage_logs").delete().eq(
+                    "date", date
+                ).eq(
+                    "item", item
+                ).execute()
+
+                st.rerun()
 
     st.divider()
 
+    # ---------------- MONTHLY ----------------
     st.subheader("Monthly Summary")
 
     monthly = {}
@@ -245,4 +254,19 @@ elif page == "Usage Reports":
         monthly[key] = monthly.get(key, 0) + log["used"]
 
     for (month, item), total in sorted(monthly.items(), reverse=True):
-        st.write(f"{month} | {item} | Used: {total}")
+
+        c1, c2 = st.columns([6, 1])
+
+        with c1:
+            st.write(f"{month} | {item} | Used: {total}")
+
+        with c2:
+            if st.button("Delete", key=f"dm_{month}_{item}"):
+
+                supabase.table("usage_logs").delete().eq(
+                    "item", item
+                ).like(
+                    "date", f"{month}%"
+                ).execute()
+
+                st.rerun()
