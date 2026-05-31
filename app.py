@@ -88,6 +88,7 @@ if page == "Inventory":
         qty = i["quantity"]
         reorder = i["reorder_level"]
 
+        # status colors
         if qty <= 0:
             glow = "#ff3b3b"
             status = "OUT OF STOCK"
@@ -122,6 +123,7 @@ if page == "Inventory":
             unsafe_allow_html=True
         )
 
+        # ---------------- BUTTONS ----------------
         c1, c2, c3, c4, c5 = st.columns(5)
 
         with c1:
@@ -133,15 +135,11 @@ if page == "Inventory":
 
         with c2:
             if st.button("-1", key=f"m1_{item_id}"):
-
                 new_qty = max(0, qty - 1)
-
                 supabase.table("inventory").update({
                     "quantity": new_qty
                 }).eq("id", item_id).execute()
-
                 log_usage(name, 1)
-
                 st.rerun()
 
         with c3:
@@ -156,19 +154,29 @@ if page == "Inventory":
                 supabase.table("inventory").delete().eq("id", item_id).execute()
                 st.rerun()
 
+        # ---------------- SETTINGS (UPDATED) ----------------
         with c5:
             with st.expander("Settings"):
 
                 new_reorder = st.number_input(
                     "Reorder Level",
+                    min_value=0,
                     value=int(reorder),
                     key=f"r_{item_id}"
                 )
 
-                if st.button("Save", key=f"s_{item_id}"):
+                new_quantity = st.number_input(
+                    "Set Quantity",
+                    min_value=0,
+                    value=int(qty),
+                    key=f"q_{item_id}"
+                )
+
+                if st.button("Save Settings", key=f"s_{item_id}"):
 
                     supabase.table("inventory").update({
-                        "reorder_level": new_reorder
+                        "reorder_level": new_reorder,
+                        "quantity": new_quantity
                     }).eq("id", item_id).execute()
 
                     st.rerun()
