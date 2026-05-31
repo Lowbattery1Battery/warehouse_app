@@ -15,7 +15,8 @@ supabase = create_client(url, key)
 # DATA
 # -----------------------------
 def load_inventory():
-    return supabase.table("inventory").select("*").execute().data or []
+    data = supabase.table("inventory").select("*").execute().data or []
+    return sorted(data, key=lambda x: x["item"].lower())
 
 def load_logs():
     return supabase.table("usage_logs").select("*").execute().data or []
@@ -30,7 +31,7 @@ def log_usage(item, amount):
 inventory = load_inventory()
 
 # -----------------------------
-# SIDEBAR (clean + professional)
+# SIDEBAR
 # -----------------------------
 st.sidebar.title("Warehouse System")
 
@@ -105,22 +106,20 @@ if page == "Inventory":
             glow = "#2ecc71"
             status = "IN STOCK"
 
-        # glowing card
         st.markdown(
             f"""
             <div style="
-                background: #0f172a;
-                border: 1px solid {glow};
-                box-shadow: 0 0 12px {glow};
-                padding: 16px;
-                border-radius: 12px;
-                margin-bottom: 12px;
+                background:#0f172a;
+                border:1px solid {glow};
+                box-shadow:0 0 12px {glow};
+                padding:16px;
+                border-radius:12px;
+                margin-bottom:12px;
+                color:white;
             ">
-                <h3 style="margin:0;color:white;">{name}</h3>
-                <p style="margin:5px 0;color:#cbd5e1;">
-                    Category: {category}
-                </p>
-                <p style="margin:5px 0;color:white;font-size:18px;">
+                <h3 style="margin:0;">{name}</h3>
+                <p style="margin:5px 0;">Category: {category}</p>
+                <p style="margin:5px 0;font-size:18px;">
                     Quantity: {qty}
                 </p>
                 <p style="margin:0;color:{glow};font-weight:bold;">
@@ -133,7 +132,6 @@ if page == "Inventory":
 
         col1, col2, col3, col4, col5 = st.columns(5)
 
-        # +1
         with col1:
             if st.button("+1", key=f"p1_{item_id}"):
                 supabase.table("inventory").update({
@@ -141,9 +139,9 @@ if page == "Inventory":
                 }).eq("id", item_id).execute()
                 st.rerun()
 
-        # -1 (logs usage)
         with col2:
             if st.button("-1", key=f"m1_{item_id}"):
+
                 new_qty = max(0, qty - 1)
 
                 supabase.table("inventory").update({
@@ -154,7 +152,6 @@ if page == "Inventory":
 
                 st.rerun()
 
-        # +5
         with col3:
             if st.button("+5", key=f"p5_{item_id}"):
                 supabase.table("inventory").update({
@@ -162,13 +159,11 @@ if page == "Inventory":
                 }).eq("id", item_id).execute()
                 st.rerun()
 
-        # DELETE
         with col4:
             if st.button("Delete", key=f"d_{item_id}"):
                 supabase.table("inventory").delete().eq("id", item_id).execute()
                 st.rerun()
 
-        # SETTINGS (REORDER LEVEL EDITABLE HERE)
         with col5:
             with st.expander("Settings"):
 
@@ -251,19 +246,3 @@ elif page == "Usage Reports":
 
     for (month, item), total in sorted(monthly.items(), reverse=True):
         st.write(f"{month} | {item} | Used: {total}")
-
-    st.divider()
-
-    st.subheader("Log Entries")
-
-    for log in sorted(logs, key=lambda x: x["id"], reverse=True):
-
-        c1, c2 = st.columns([6, 1])
-
-        with c1:
-            st.write(f"{log['date']} | {log['item']} | Used: {log['used']}")
-
-        with c2:
-            if st.button("Delete", key=f"l_{log['id']}"):
-                supabase.table("usage_logs").delete().eq("id", log["id"]).execute()
-                st.rerun()
