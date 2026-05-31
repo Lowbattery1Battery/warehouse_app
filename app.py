@@ -12,7 +12,7 @@ key = st.secrets["SUPABASE_KEY"]
 supabase = create_client(url, key)
 
 # -----------------------------
-# DATA FUNCTIONS
+# DATA
 # -----------------------------
 def load_inventory():
     return supabase.table("inventory").select("*").execute().data or []
@@ -30,12 +30,12 @@ def log_usage(item, amount):
 inventory = load_inventory()
 
 # -----------------------------
-# SIDEBAR
+# SIDEBAR (clean + professional)
 # -----------------------------
 st.sidebar.title("Warehouse System")
 
 page = st.sidebar.radio(
-    "Menu",
+    "",
     ["Inventory", "Low Stock", "Orders", "Usage Reports"]
 )
 
@@ -58,27 +58,34 @@ if page == "Inventory":
     # ---------------- ADD ITEM ----------------
     with st.expander("Add Item"):
 
-        with st.form("add"):
+        with st.form("add_item"):
 
             item = st.text_input("Item Name")
             category = st.text_input("Category")
             qty = st.number_input("Quantity", min_value=0, value=0)
-            reorder_level = st.number_input("Reorder Level", min_value=0, value=5)
 
-            if st.form_submit_button("Add"):
+            reorder_level = st.number_input(
+                "Reorder Level",
+                min_value=0,
+                value=5
+            )
 
+            submit = st.form_submit_button("Add")
+
+            if submit:
                 supabase.table("inventory").insert({
                     "item": item,
                     "category": category,
                     "quantity": qty,
                     "reorder_level": reorder_level
                 }).execute()
-
                 st.rerun()
 
     st.divider()
 
-    # ---------------- ITEM CARDS ----------------
+    # =================================================
+    # ITEM CARDS (GLOW STYLE)
+    # =================================================
     for i in inventory:
 
         item_id = i["id"]
@@ -87,29 +94,36 @@ if page == "Inventory":
         qty = i["quantity"]
         reorder = i["reorder_level"]
 
+        # status color logic
         if qty <= 0:
+            glow = "#ff3b3b"
             status = "OUT OF STOCK"
-            color = "#b00020"
         elif qty <= reorder:
+            glow = "#ffb020"
             status = "LOW STOCK"
-            color = "#c77700"
         else:
+            glow = "#2ecc71"
             status = "IN STOCK"
-            color = "#0b6b0b"
 
+        # glowing card
         st.markdown(
             f"""
             <div style="
-                background:#1f4e79;
-                padding:15px;
-                border-radius:12px;
-                color:white;
-                margin-bottom:10px;
+                background: #0f172a;
+                border: 1px solid {glow};
+                box-shadow: 0 0 12px {glow};
+                padding: 16px;
+                border-radius: 12px;
+                margin-bottom: 12px;
             ">
-                <h3 style="margin:0">{name}</h3>
-                <p style="margin:5px 0;">Category: {category}</p>
-                <p style="margin:5px 0;">Quantity: {qty}</p>
-                <p style="margin:5px 0;color:{color};font-weight:bold;">
+                <h3 style="margin:0;color:white;">{name}</h3>
+                <p style="margin:5px 0;color:#cbd5e1;">
+                    Category: {category}
+                </p>
+                <p style="margin:5px 0;color:white;font-size:18px;">
+                    Quantity: {qty}
+                </p>
+                <p style="margin:0;color:{glow};font-weight:bold;">
                     {status}
                 </p>
             </div>
@@ -117,8 +131,9 @@ if page == "Inventory":
             unsafe_allow_html=True
         )
 
-        col1, col2, col3, col4 = st.columns(4)
+        col1, col2, col3, col4, col5 = st.columns(5)
 
+        # +1
         with col1:
             if st.button("+1", key=f"p1_{item_id}"):
                 supabase.table("inventory").update({
@@ -126,9 +141,9 @@ if page == "Inventory":
                 }).eq("id", item_id).execute()
                 st.rerun()
 
+        # -1 (logs usage)
         with col2:
             if st.button("-1", key=f"m1_{item_id}"):
-
                 new_qty = max(0, qty - 1)
 
                 supabase.table("inventory").update({
@@ -139,6 +154,7 @@ if page == "Inventory":
 
                 st.rerun()
 
+        # +5
         with col3:
             if st.button("+5", key=f"p5_{item_id}"):
                 supabase.table("inventory").update({
@@ -146,10 +162,29 @@ if page == "Inventory":
                 }).eq("id", item_id).execute()
                 st.rerun()
 
+        # DELETE
         with col4:
             if st.button("Delete", key=f"d_{item_id}"):
                 supabase.table("inventory").delete().eq("id", item_id).execute()
                 st.rerun()
+
+        # SETTINGS (REORDER LEVEL EDITABLE HERE)
+        with col5:
+            with st.expander("Settings"):
+
+                new_reorder = st.number_input(
+                    "Reorder Level",
+                    value=int(reorder),
+                    key=f"r_{item_id}"
+                )
+
+                if st.button("Save", key=f"s_{item_id}"):
+
+                    supabase.table("inventory").update({
+                        "reorder_level": new_reorder
+                    }).eq("id", item_id).execute()
+
+                    st.rerun()
 
 # =====================================================
 # LOW STOCK
@@ -167,14 +202,14 @@ elif page == "Low Stock":
 # =====================================================
 elif page == "Orders":
 
-    st.title("Orders Needed")
+    st.title("Orders")
 
     found = False
 
     for i in inventory:
         if i["quantity"] <= i["reorder_level"]:
             found = True
-            st.info(f"{i['item']} → Order more stock")
+            st.info(f"Order more: {i['item']}")
 
     if not found:
         st.success("No orders needed")
@@ -223,12 +258,12 @@ elif page == "Usage Reports":
 
     for log in sorted(logs, key=lambda x: x["id"], reverse=True):
 
-        col1, col2 = st.columns([6, 1])
+        c1, c2 = st.columns([6, 1])
 
-        with col1:
+        with c1:
             st.write(f"{log['date']} | {log['item']} | Used: {log['used']}")
 
-        with col2:
+        with c2:
             if st.button("Delete", key=f"l_{log['id']}"):
                 supabase.table("usage_logs").delete().eq("id", log["id"]).execute()
                 st.rerun()
